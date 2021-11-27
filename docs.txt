@@ -1,3 +1,4 @@
+https://remix.run/docs/en/v1/tutorials/jokes
 https://github.com/kentcdodds/remix-tutorial-walkthrough
 https://github.com/kentcdodds/kentcdodds.com
 
