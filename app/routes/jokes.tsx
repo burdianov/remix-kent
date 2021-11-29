@@ -24,7 +24,6 @@ export const loader: LoaderFunction = async () => {
     orderBy: { createdAt: 'desc' }
   });
 
-  console.log({ jokeListItems });
   const data: LoaderData = { jokeListItems };
   return data;
 };
