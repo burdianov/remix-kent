@@ -1,10 +1,19 @@
 import type { ActionFunction, LoaderFunction } from 'remix';
-import { Form, useActionData, redirect, useCatch, Link } from 'remix';
+import {
+  useActionData,
+  redirect,
+  json,
+  useCatch,
+  Link,
+  Form,
+  useTransition
+} from 'remix';
+import { JokeDisplay } from '~/components/joke';
 import { db } from '~/utils/db.server';
 import { requireUserId, getUserId } from '~/utils/session.server';
 
-export let loader: LoaderFunction = async ({ request }) => {
-  let userId = await getUserId(request);
+export const loader: LoaderFunction = async ({ request }) => {
+  const userId = await getUserId(request);
   if (!userId) {
     throw new Response('Unauthorized', { status: 401 });
   }
@@ -35,34 +44,56 @@ type ActionData = {
   };
 };
 
-export let action: ActionFunction = async ({
-  request
-}): Promise<Response | ActionData> => {
-  let userId = await requireUserId(request);
-  let form = await request.formData();
-  let name = form.get('name');
-  let content = form.get('content');
+const badRequest = (data: ActionData) => json(data, { status: 400 });
+
+export const action: ActionFunction = async ({ request }) => {
+  const userId = await requireUserId(request);
+  const form = await request.formData();
+  const name = form.get('name');
+  const content = form.get('content');
   if (typeof name !== 'string' || typeof content !== 'string') {
-    return { formError: `Form not submitted correctly.` };
+    return badRequest({
+      formError: `Form not submitted correctly.`
+    });
   }
 
-  let fieldErrors = {
+  const fieldErrors = {
     name: validateJokeName(name),
     content: validateJokeContent(content)
   };
-  let fields = { name, content };
+  const fields = { name, content };
   if (Object.values(fieldErrors).some(Boolean)) {
-    return { fieldErrors, fields };
+    return badRequest({ fieldErrors, fields });
   }
 
-  let joke = await db.joke.create({
+  const joke = await db.joke.create({
     data: { ...fields, jokesterId: userId }
   });
   return redirect(`/jokes/${joke.id}`);
 };
 
 export default function NewJokeRoute() {
-  let actionData = useActionData<ActionData | undefined>();
+  const actionData = useActionData<ActionData>();
+  const transition = useTransition();
+
+  if (transition.submission) {
+    const name = transition.submission.formData.get('name');
+    const content = transition.submission.formData.get('content');
+    if (
+      typeof name === 'string' &&
+      typeof content === 'string' &&
+      !validateJokeContent(content) &&
+      !validateJokeName(name)
+    ) {
+      return (
+        <JokeDisplay
+          joke={{ name, content }}
+          isOwner={true}
+          canDelete={false}
+        />
+      );
+    }
+  }
 
   return (
     <div>
@@ -122,7 +153,7 @@ export default function NewJokeRoute() {
 }
 
 export function CatchBoundary() {
-  let caught = useCatch();
+  const caught = useCatch();
 
   if (caught.status === 401) {
     return (
@@ -134,7 +165,9 @@ export function CatchBoundary() {
   }
 }
 
-export function ErrorBoundary() {
+export function ErrorBoundary({ error }: { error: Error }) {
+  console.error(error);
+
   return (
     <div className="error-container">
       Something unexpected went wrong. Sorry about that.
